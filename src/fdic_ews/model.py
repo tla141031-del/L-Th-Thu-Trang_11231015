@@ -148,6 +148,36 @@ def load(with_excluded: bool = False):
     return dev, test
 
 
+def bank_reconciliation() -> pl.DataFrame:
+    """Where each failed bank with a positive row ends up (labels and dates only; no model, no scores)."""
+    f = pl.read_parquet(C.FEATURES / "features.parquet", columns=["CERT", "REPDTE", "y", "label_complete",
+                                                                  "fail_date", "available_date"]).filter(pl.col("y") == 1)
+    d = date.fromisoformat
+    f = f.with_columns(
+        pl.when(pl.col("REPDTE") <= d(C.DEV_END)).then(pl.lit("development"))
+        .when(pl.col("REPDTE") < d(C.TEST_START)).then(pl.lit("gap"))
+        .when((pl.col("REPDTE") <= d(C.TEST_END)) & pl.col("label_complete")).then(pl.lit("test"))
+        .otherwise(pl.lit("after")).alias("seg"), USABLE.alias("ok"))
+    b = f.group_by("CERT").agg(pl.col("seg").filter(pl.col("ok")).alias("useg"), pl.col("seg").alias("seg"))
+    order = ["development: usable positive row", "development: every positive row removed by availability",
+             "gap 2010 only (never scored)", "test: usable positive row",
+             "test: every positive row removed by availability", "after 2025Q2 only (label window not closed)"]
+
+    def cls(u, s):
+        if "development" in u: return order[0]
+        if "test" in u: return order[3]
+        if "development" in s: return order[1]
+        if "test" in s: return order[4]
+        if "gap" in s: return order[2]
+        return order[5]
+    b = b.with_columns(pl.struct("useg", "seg").map_elements(lambda r: cls(r["useg"], r["seg"]),
+                                                             return_dtype=pl.Utf8).alias("group"))
+    out = (pl.DataFrame({"group": order}).join(b.group_by("group").len().rename({"len": "banks"}), on="group", how="left")
+           .fill_null(0))
+    out.write_csv(C.TABLES / "model_bank_reconciliation.csv")
+    return out
+
+
 def X(df: pl.DataFrame, cols: list[str]) -> np.ndarray:
     return df.select(cols).to_numpy().astype(float)
 
@@ -266,6 +296,7 @@ def select(reason: str | None = None) -> dict:
                           "failed_banks_only_in_excluded_rows": len(set(ex.filter(pl.col("y") == 1)["CERT"].to_list())
                                                                     - set(df.filter(pl.col("y") == 1)["CERT"].to_list()))})
     pl.DataFrame(split_tab).write_csv(C.TABLES / "model_split.csv")
+    bank_reconciliation()
 
     leakage_proof(dev, test)
 
@@ -341,6 +372,14 @@ def select(reason: str | None = None) -> dict:
     perm_importance(dev, spec[chosen])
     _plot_cv(folds)
     return choice
+
+
+def frozen_choice_scored() -> bool:
+    """True if the current frozen choice has already been scored on the test period."""
+    if not CHOICE.exists():
+        return False
+    sha = json.loads(CHOICE.read_text()).get("sha1")
+    return any(r.get("event", "test_scored") == "test_scored" and r.get("choice_sha1") == sha for r in _log())
 
 
 def evaluate(force: bool = False) -> None:

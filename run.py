@@ -1,8 +1,10 @@
 """Single entry point: ``python run.py <stage>``.
 
 Stages, in order: ingest, verify, store, bench_storage, quality, panel, features,
-bench_processing, spark, model, mllib, report.  ``python run.py all`` runs every stage
-after ``ingest`` (the download is resumable, so ``ingest`` can simply be rerun).
+bench_processing, spark, experiments, model, test, mllib, report.  ``python run.py all`` runs
+every stage after ``ingest`` (the download is resumable, so ``ingest`` can simply be rerun).
+``all`` never re-scores the test period: if the frozen choice in reports/tables/model_choice.json
+has already been scored (test_log.jsonl), it skips ``model`` and ``test`` and keeps the logged result.
 """
 from __future__ import annotations
 
@@ -73,6 +75,12 @@ def main() -> None:
     ap.add_argument("--force", action="store_true", help="test: score a frozen choice again (logged)")
     a = ap.parse_args()
     for st in (STAGES[1:] if a.stage == "all" else [a.stage]):
+        if a.stage == "all" and st in ("model", "test"):
+            from fdic_ews import model as M
+            if M.frozen_choice_scored():
+                print(f"=== {st} skipped: the frozen choice was already scored once (see test_log.jsonl); "
+                      f"run `python run.py {st}` on its own to see why it refuses", flush=True)
+                continue
         t0 = time.perf_counter()
         print(f"=== {st}", flush=True)
         run(st, a)

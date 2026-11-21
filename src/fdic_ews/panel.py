@@ -28,9 +28,12 @@ def failures_clean() -> tuple[pl.DataFrame, dict]:
     stats = {"rows_raw": f.height,
              "restype_counts": dict(f.group_by("RESTYPE").len().iter_rows()),
              "missing_cert": int(f["CERT"].null_count())}
+    stats["failure_rows_missing_cert"] = int(f.filter((pl.col("RESTYPE") == "FAILURE") & pl.col("CERT").is_null()).height)
     f = f.filter((pl.col("RESTYPE") == "FAILURE") & pl.col("CERT").is_not_null())
-    stats["duplicate_cert"] = int(f["CERT"].is_duplicated().sum())
+    stats["failure_rows_with_cert"] = f.height
+    stats["duplicate_cert"] = int(f["CERT"].is_duplicated().sum())          # rows sharing a CERT (all copies)
     f = f.sort("FAILDATE").unique("CERT", keep="first", maintain_order=True)
+    stats["duplicate_rows_removed"] = stats["failure_rows_with_cert"] - f.height
     stats["rows_used"] = f.height
     stats["used_since_1984"] = int(f.filter(pl.col("FAILDATE") > date(1984, 3, 31)).height)
     return f.select("CERT", pl.col("FAILDATE").alias("fail_date"), "COST", "QBFASSET", "RESTYPE1"), stats
@@ -43,10 +46,14 @@ def _downloaded_on() -> date:
 
 def classify_exits(fin: pl.LazyFrame, fails: pl.DataFrame) -> pl.DataFrame:
     inst = pl.read_parquet(C.CURATED / "institutions.parquet").select("CERT", "ACTIVE", "CHANGEC1", "ENDEFYMD")
-    last = fin.group_by("CERT").agg(pl.col("REPDTE").max().alias("last_report")).collect()
+    last = fin.group_by("CERT").agg(pl.col("REPDTE").min().alias("first_report"),
+                                    pl.col("REPDTE").max().alias("last_report")).collect()
     ex = (last.join(inst, on="CERT", how="left").join(fails.select("CERT", "fail_date"), on="CERT", how="left")
           .with_columns(
-              pl.when(pl.col("fail_date").is_not_null()).then(pl.lit("failure"))
+              # a failure dated before the bank's first report (two pre-1984 cases whose CERT kept reporting)
+              # leaves no pre-failure row in the panel, so it is not counted as a failure exit
+              pl.when(pl.col("fail_date").is_not_null() & (pl.col("fail_date") > pl.col("first_report")))
+              .then(pl.lit("failure"))
               .when(pl.col("ACTIVE") == 1).then(pl.lit("active"))
               .when(pl.col("CHANGEC1").is_between(200, 299)).then(pl.lit("merger_or_absorption"))
               .otherwise(pl.lit("other_exit")).alias("exit_type")))
@@ -105,6 +112,7 @@ def build() -> dict:
         "positives_failing_before_available": int(pos.filter(pl.col("fail_date") <= pl.col("available_date")).height),
         "labels_asof": str(asof),
         "exit_banks": dict(exits.group_by("exit_type").len().iter_rows()),
+        "failed_before_first_report": int(exits.filter(pl.col("fail_date") <= pl.col("first_report")).height),
     }
     (C.TABLES / "panel_info.json").write_text(json.dumps(info, indent=1, default=str))
     print(json.dumps(info, indent=1, default=str))

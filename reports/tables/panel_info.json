@@ -6,7 +6,10 @@
    "ASSISTANCE": 593
   },
   "missing_cert": 488,
+  "failure_rows_missing_cert": 485,
+  "failure_rows_with_cert": 3039,
   "duplicate_cert": 6,
+  "duplicate_rows_removed": 3,
   "rows_used": 3036,
   "used_since_1984": 2845
  },
@@ -19,9 +22,10 @@
  "positives_failing_before_available": 1492,
  "labels_asof": "2026-11-20",
  "exit_banks": {
-  "merger_or_absorption": 16764,
+  "merger_or_absorption": 16766,
+  "failure": 2839,
   "active": 4201,
-  "failure": 2841,
   "other_exit": 258
- }
+ },
+ "failed_before_first_report": 2
 }

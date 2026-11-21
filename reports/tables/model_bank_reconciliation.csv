@@ -1,0 +1,7 @@
+group,banks
+development: usable positive row,2597
+development: every positive row removed by availability,15
+gap 2010 only (never scored),26
+test: usable positive row,181
+test: every positive row removed by availability,18
+after 2025Q2 only (label window not closed),2

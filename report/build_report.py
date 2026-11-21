@@ -237,6 +237,9 @@ def TAB(header, body, widths=None, size=8.5, caption=None, label=None):
             for p in c.paragraphs:
                 p.paragraph_format.space_after = p.paragraph_format.space_before = Pt(0)
     if widths:
+        t.autofit = False
+        for j, w in enumerate(widths):
+            t.columns[j].width = Cm(w)
         for row in t.rows:
             for j, w in enumerate(widths):
                 row.cells[j].width = Cm(w)
@@ -274,7 +277,7 @@ def arch_fig(path):
          ("Curated", "typed schema, zstd\nyear=YYYY partitions\nsorted CERT, REPDTE", "#E6E6E6"),
          ("Panel", "label (q, q+4Q]\nexit types,\navailable_date", "#F6EBC4"),
          ("Features", "40 CAMELS + dynamic\n+ cross-section\n(Polars lazy)", "#DCEEDF"),
-         ("Model", "rolling-origin CV\ncost threshold\nsingle test", "#EADFF2")]
+         ("Model", "rolling-origin CV\ncost threshold\nlogged test", "#EADFF2")]
     for k, (t, s, c) in enumerate(B):
         x = 0.1 + k * 1.83
         ax.add_patch(FancyBboxPatch((x, 0.55), 1.55, 1.85, boxstyle="round,pad=0.03", fc=c, ec="#555", lw=1))
@@ -322,7 +325,7 @@ def banks_fig(path):
                       ("RBC1AAJ", "Tier 1 leverage = 0")):
         axes[1].plot(zy, [float(r_[col]) if r_[col] else None for r_ in zshare], label=lab_)
     axes[1].set_title("Share of banks reporting exactly 0 (%)", fontsize=9)
-    axes[1].legend(fontsize=7)
+    axes[1].legend(fontsize=6.5, loc="center right", framealpha=0.9)
     for ax in axes:
         ax.tick_params(labelsize=8)
     fig.tight_layout()
@@ -339,7 +342,7 @@ rr = p.add_run("NATIONAL ECONOMICS UNIVERSITY · BFT65B – BIG DATA ANALYTICS I
 rr.bold, rr.font.size = True, Pt(9)
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-rr = p.add_run("A Reproducible, Leakage-Free Big-Data Pipeline\nfor Bank Failure Early Warning on FDIC Call Reports")
+rr = p.add_run("A Reproducible, Leakage-Controlled Big-Data Pipeline\nfor Bank Failure Early Warning on FDIC Call Reports")
 rr.bold, rr.font.size, rr.font.color.rgb = True, Pt(16), RGBColor(0x1B, 0x3B, 0x6F)
 p = doc.add_paragraph()
 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -362,13 +365,14 @@ TAB(["Item", "Value"], [
     ["Institutions", f"{n(comp['institutions_rows'])} rows"],
     ["Label", "y = 1 if the bank fails in (q, q + 4 quarters]; mergers and other exits are 0"],
     ["Development period", f"1984Q1–2009Q4: {n(dev['rows'])} bank-quarters, {n(dev['failed_banks'])} failed "
-                           f"banks ({n(dev['positive_rows'])} positive rows)"],
+                           f"banks with a usable positive row ({n(dev['positive_rows'])} positive rows)"],
     ["Gap", "2010Q1–2010Q4 (4 quarters, unused)"],
     ["Availability rule", f"rows used only if the report (REPDTE + 60 days) was public before any failure; "
                           f"{n(dev['rows_excluded_unavailable'])} development and {n(tst['rows_excluded_unavailable'])} "
                           f"test rows removed"],
-    ["Test period (frozen choice scored once)", f"2011Q1–2025Q2: {n(tst['rows'])} bank-quarters, {n(tst['failed_banks'])} "
-                                f"failed banks ({n(tst['positive_rows'])} positive rows)"],
+    ["Test period (final scoring of the frozen choice)", f"reports 2011Q1–2025Q2: {n(tst['rows'])} bank-quarters, "
+                                f"{n(tst['failed_banks'])} failed banks with a usable positive row ({n(tst['positive_rows'])} positive rows); "
+                                f"failures up to 2026Q2 count, because the label looks four quarters ahead"],
 ], widths=[4.2, 12.8], size=9)
 sz, sc = sbr("parquet_zstd_by_year", "filter_1yr_state"), sbr("csv", "filter_1yr_state")
 P(f"**Summary.** The pipeline downloads the full exam scope resumably and verifies it against the API's own "
@@ -378,9 +382,13 @@ P(f"**Summary.** The pipeline downloads the full exam scope resumably and verifi
   f"event types, structural gaps, informative missingness, year-to-date income, reports after failure and "
   f"snapshot fields that encode the future. Polars computes the core workload "
   f"{f(pbr('1', 'polars_lazy')['speedup_vs_pandas'], 1)}–{f(pbr('1', 'polars_streaming')['speedup_vs_pandas'], 1)}x "
-  f"faster than pandas, and PySpark reproduces it row by row. On the single test the chosen model reaches "
+  f"faster than pandas, and PySpark reproduces it row by row. In the final test evaluation the chosen model reaches "
   f"PR-AUC {f(cht['pr_auc'], 3)} (baseline {f(blt['pr_auc'], 3)}) and flags {n(chd['detected_at_threshold'])} of "
-  f"{n(chd['failed_banks'])} failed banks at a threshold derived from FDIC loss data.")
+  f"{n(chd['failed_banks'])} scoreable failed banks at a threshold derived from FDIC loss data "
+  f"({pc(int(chd['detected_at_threshold']) / int(chd['failed_banks']), 1)}; counting the "
+  f"{tst['failed_banks_only_in_excluded_rows']} banks removed by the availability rule as misses, "
+  f"{n(chd['detected_at_threshold'])} of {n(int(chd['failed_banks']) + int(tst['failed_banks_only_in_excluded_rows']))}, "
+  f"{pc(int(chd['detected_at_threshold']) / (int(chd['failed_banks']) + int(tst['failed_banks_only_in_excluded_rows'])), 1)}).")
 doc.add_page_break()
 
 # ================================================================== 1
@@ -432,7 +440,8 @@ TAB(["Decision", "Alternative", "Measured evidence (section)"], [
 # ================================================================== 2
 H("2. Part 1 – Acquisition and storage")
 H("2.1 Reproducible, resumable acquisition and verification", 2)
-P("`src/fdic_ews/ingest.py` adapts the course starter script. It pages through each endpoint with "
+P("`src/fdic_ews/ingest.py` adapts the course starter script (BFT65B course, 2026) to the BankFind Suite API "
+  "(Federal Deposit Insurance Corporation, n.d.). It pages through each endpoint with "
   "`limit = 10,000` and `offset`, retries HTTP errors and connection failures with exponential back-off, and "
   "pauses between calls. Financials are requested one quarter at a time (filter `REPDTE:YYYYMMDD`) by two "
   "worker threads; three workers triggered HTTP 429 rate limits, so two is the measured polite maximum. Each "
@@ -552,6 +561,7 @@ rbc = pick(zeros, column="RBCRWAJ")
 R = {r["rule"]: r for r in rules}
 ytd1, ytd4 = ytd[0], ytd[3]
 FT = {r["item"]: r["value"] for r in ftab}
+BR = {r["group"]: r["banks"] for r in rows("model_bank_reconciliation.csv")}
 TAB(["Problem", "Measured evidence", "Handling"], [
     ["Failures table mixes event types", f"{n(pinfo['failures']['restype_counts'].get('ASSISTANCE', 0))} "
      f"assistance deals (bank stayed open); {n(pinfo['failures']['missing_cert'])} rows without CERT; "
@@ -595,8 +605,11 @@ P("The audit is systematic in three ways: every field is profiled for missingnes
 TAB(["Step", "Rows", "Comment"], [
     ["Failures table as downloaded", n(FT["rows in failures table"]), "= API total"],
     ["− assistance transactions", n(FT["RESTYPE = ASSISTANCE (bank stayed open)"]), "open-bank assistance, not a failure"],
-    ["− rows without CERT", n(FT["rows without CERT"]), "cannot be joined to Financials"],
-    ["− repeated CERT (keep first failure)", n(pinfo["failures"]["duplicate_cert"]), "would duplicate panel rows"],
+    ["− FAILURE rows without CERT", n(pinfo["failures"]["failure_rows_missing_cert"]),
+     f"cannot be joined to Financials ({n(FT['rows without CERT'])} rows without CERT in all, "
+     f"{n(int(float(FT['rows without CERT'])) - int(pinfo['failures']['failure_rows_missing_cert']))} of them assistance)"],
+    ["− repeated CERT (keep first failure)", n(pinfo["failures"]["duplicate_rows_removed"]),
+     f"{n(pinfo['failures']['duplicate_cert'])} rows share {n(int(pinfo['failures']['duplicate_cert']) - int(pinfo['failures']['duplicate_rows_removed']))} CERTs"],
     ["= failures used", n(FT["failures used (RESTYPE = FAILURE, with CERT)"]), f"{n(pinfo['failures']['used_since_1984'])} after 1984Q1"],
     ["failed after 1984Q1 but never in Financials", n(FT["after 1984Q1 but no Financials row"]), "cannot be scored; listed"],
     ["Financials rows dated on/after failure", n(FT["Financials rows dated on/after the failure (removed)"]), "removed"],
@@ -645,9 +658,16 @@ TOPC = ", ".join([f"{r_['CHANGEC1']} ({n(r_['len'])})" for r_ in ecodes if r_["e
 P(f"Banks leave the panel for different reasons. `panel.classify_exits` labels each bank as a failure "
   f"({n(E.get('failure', 0))} banks), a merger or absorption ({n(E.get('merger_or_absorption', 0))}; CHANGEC1 codes "
   f"2xx; the largest are {TOPC}), another exit ({n(E.get('other_exit', 0))}), or active ({n(E.get('active', 0))}). Only "
-  f"failures create positives; mergers are 0 as the brief requires. Every failed bank in the panel keeps at least "
-  f"one positive row: the last report precedes failure by one quarter for {n(lagf[0]['len'])} banks and by two or "
-  f"three quarters for the rest. Four rules make the panel point-in-time correct:")
+  f"failures create positives; mergers are 0 as the brief requires. Before the availability rule below, every "
+  f"failed bank in the panel has at least one positive row. Counted by bank, the last report precedes failure by one quarter for {n(lagf[0]['len'])} of "
+  f"the {n(pinfo['failed_banks_with_positive_row'])} banks, by two quarters for {n(lagf[1]['len'])} and by three for "
+  f"{n(lagf[2]['len'])}; Appendix C counts positive bank-quarter rows instead, which is why it runs to four "
+  f"quarters. The {n(E.get('failure', 0))} failure exits equal the "
+  f"{n(pinfo['failed_banks_with_positive_row'])} failed banks with a positive row in Table [[T:recon]]: the "
+  f"{pinfo['failed_before_first_report']} banks whose FAILURE record predates their first report (1981–1982, "
+  f"the CERT kept reporting until a later merger) have no pre-failure row, so their rows are removed and their exit is "
+  f"classified by CHANGEC1. Four rules control the panel's point-in-time correctness; they cover reporting delays and "
+  f"snapshot fields but not later amendments of the reports themselves (Section 5.1):")
 BUL([
     "**Label:** `y = 1` iff q < FAILDATE ≤ q + 4 quarter-ends. Seven assertions in `panel.checks` stop the "
     "pipeline if any positive fails on or before its report date or more than four quarters later, if a negative "
@@ -660,7 +680,10 @@ BUL([
     f"of them lie in the 2010 gap or outside the modelling window). These rows are removed from development ({n(dev['rows_excluded_unavailable'])} rows) and test "
     f"({n(tst['rows_excluded_unavailable'])} rows) before any model is fitted, scored or evaluated (`model.load`); "
     f"{dev['failed_banks_only_in_excluded_rows']} development and {tst['failed_banks_only_in_excluded_rows']} test "
-    f"banks failed so soon after their last usable report that they have no usable positive row at all.",
+    f"banks failed so soon after their last usable report that they have no usable positive row at all. "
+    f"Table [[T:bankrec]] (Appendix C) places all {n(pinfo['failed_banks_with_positive_row'])} failed banks: "
+    f"{n(BR['gap 2010 only (never scored)'])} have positive rows only in the 2010 gap and "
+    f"{n(BR['after 2025Q2 only (label window not closed)'])} only after 2025Q2.",
     "**Censoring:** a label is complete only if its window closed before the failures list was downloaded; "
     "modelling stops at 2025Q2.",
     "**No snapshot leakage:** institution status fields describe today, not quarter q, so they are excluded.",
@@ -669,13 +692,13 @@ BUL([
 # ================================================================== 4
 H("4. Part 3 – Scalable processing")
 H("4.1 Core transformations in Polars and how the engine runs them", 2)
-P("The feature pipeline (`features.py`) is one Polars lazy query. It sorts by (CERT, REPDTE) and builds a "
+P("The feature pipeline (`features.py`) is one Polars lazy query (Polars developers, 2026). It sorts by (CERT, REPDTE) and builds a "
   "quarter index. It de-cumulates seven year-to-date items: the Q1 value is the flow; later quarters subtract the "
   "previous report only if that report is exactly one quarter earlier. It then computes 26 ratios with safe "
   "division, gap-aware 1- and 4-quarter changes and 4-report rolling statistics per bank (`over('CERT')`), and "
   "cross-sectional percentile ranks and state medians per quarter (`over('REPDTE')`). The optimised plan "
   "(`plan_bench_polars_optimized.txt`) shows how the engine executes it. **Projection pushdown:** the Parquet "
-  "scan reads 11 of 36 columns (`PROJECT 11/36 COLUMNS`); unused columns such as the state code are never "
+  "scan reads 11 of 36 columns (`PROJECT 11/36 COLUMNS`: the 35 stored fields plus the `year` partition column); unused columns such as the state code are never "
   "decoded. **Common-subexpression elimination:** guards such as `ASSET > 0` and the Q1 test are computed once "
   "as cached `__POLARS_CSER_*` columns. **Fusion:** consecutive `with_columns` run in one pass over Arrow "
   "buffers, in parallel across columns. Window expressions over the same key reuse one group-by. The streaming "
@@ -697,7 +720,7 @@ for scl in ("1", "3"):
 TAB(["Scale", "Rows", "Engine", "Median s", "vs pandas", "Peak MB", "Spark start s", "Mismatches / rel. diff"], body,
     label="engines", caption=f"Core workload in five engines ({pb_env['cpu_count']} CPUs, {pb_env['ram_gb']} GB RAM; pandas "
             f"{pb_env['pandas']}, Polars {pb_env['polars']}, PySpark {pb_env['pyspark']} local[*]). x3 stacks three "
-            f"copies of the real panel with shifted CERTs.", size=8)
+            f"copies of the real panel with shifted CERTs.", size=8, widths=[1.1, 2.0, 3.1, 1.7, 1.8, 1.7, 2.0, 3.6])
 pl1, ps1, pd1, sp1 = pbr("1", "polars_lazy"), pbr("1", "polars_streaming"), pbr("1", "pandas"), pbr("1", "pyspark")
 pl3, ps3, pd3, sp3 = pbr("3", "polars_lazy"), pbr("3", "polars_streaming"), pbr("3", "pandas"), pbr("3", "pyspark")
 P(f"Polars lazy runs the workload in {f(pl1['median_s'], 2)} s, {f(pl1['speedup_vs_pandas'], 1)}x faster than "
@@ -829,7 +852,11 @@ P("The 40 features (Appendix B) are grouped as follows. **Capital:** equity/asse
 P(f"**Look-ahead test.** `features.lookahead_test` computes all features twice: on the full panel, and on the panel "
   f"truncated at {look['cutoff']}. It then compares the {n(look['rows_compared'])} rows before the cut-off. "
   f"{len(look['features_changed_by_future_rows'])} of {look['features']} features change when future rows are "
-  f"added. A unit test plants extreme future values and confirms that no earlier feature moves.")
+  f"added. A unit test plants extreme future values and confirms that no earlier feature moves. This proves "
+  f"that the feature code never reads later rows; it does not prove that each stored value is the version that was "
+  f"public at the decision date. The API serves the latest amended Call Reports, not the first release (Table "
+  f"[[T:dq]]), so a residual point-in-time risk remains that no download from today's API can remove. The "
+  f"pipeline is therefore described as leakage-controlled, not leakage-free (Section 7.1).")
 P("**Is each group informative?** Before any model is fitted, `experiments.feature_signal` measures the "
   "univariate ranking power of every feature on development rows only: the ROC-AUC of the feature alone "
   "(oriented so that 0.5 means no signal), computed on the rows where it is observed, and its median for "
@@ -844,7 +871,7 @@ PIL = {"C": "Capital", "A": "Asset quality", "M": "Management", "E": "Earnings",
 TAB(["Feature", "Group", "AUC alone", "Direction", "Median y = 1", "Median y = 0", "Missing %"],
     [[r_["feature"], PIL.get(r_["pillar"], r_["pillar"]), f(r_["roc_auc_oriented"], 3), r_["direction"],
       f(r_["median_y1"], 4), f(r_["median_y0"], 4), f(r_["missing_pct"], 1)] for r_ in _show],
-    widths=[3.8, 2.2, 1.6, 2.6, 2.2, 2.2, 1.6], size=7.6,
+    widths=[4.6, 2.2, 1.5, 2.4, 2.1, 2.1, 1.6], size=7.4,
     label="signal", caption="Univariate signal on development rows only (top 8, then the best feature of each remaining group).")
 _wk = [r_ for r_ in fsig if float(r_["roc_auc_oriented"]) < 0.6]
 P(f"Every CAMELS group carries signal on its own. Capital and asset-quality ratios are the strongest, with "
@@ -956,9 +983,11 @@ P(f"A missed failure costs the Deposit Insurance Fund the resolution cost. The m
   f"C_FP/(C_FP + C_FN) = {f(costs['bayes_threshold'], 3)} (Elkan, 2001). The threshold actually used, "
   f"{f(choice['threshold'], 4)}, minimises the total cost over the pooled out-of-fold development predictions, "
   f"so it also absorbs any miscalibration (Figure [[F:cost]]). α and the examination cost are assumptions; Appendix G "
-  f"repeats the choice for 12 combinations.")
+  f"repeats the choice for 12 combinations. The threshold is therefore a decision rule conditional on two "
+  f"assumptions (α and the examination cost), not an objective constant; only the failure costs come directly "
+  f"from FDIC data.")
 FIG("cost", FIGS / "model_cost_curve.png", "Expected cost of the alarm rule on out-of-fold development predictions.", 12)
-H("6.5 Single evaluation on the test period", 2)
+H("6.5 Final evaluation on the test period", 2)
 TAB(["Model", "PR-AUC", "ROC-AUC", "Brier", "Recall top 2%", "Alerts", "TP", "FN", "Cost M USD"],
     [[NAMES.get(r_["model"], r_["model"]) + (" (chosen)" if r_["chosen"] == "true" else ""), f(r_["pr_auc"], 3),
       f(r_["roc_auc"], 3), f(r_["brier"], 4), f(r_["recall_top2pct"], 3),
@@ -966,7 +995,7 @@ TAB(["Model", "PR-AUC", "ROC-AUC", "Brier", "Recall top 2%", "Alerts", "TP", "FN
     widths=[4.8, 1.5, 1.6, 1.6, 1.9, 1.4, 1.1, 1.1, 1.9], size=8,
     label="test", caption=f"Test 2011Q1–2025Q2 ({n(cht['rows'])} rows, {n(cht['positives'])} positives) at the thresholds fixed on "
             f"development (usable rows only, see Section 3.3).")
-P(f"**Keeping the test period single-use.** Selection and evaluation are separate stages. `python run.py model` "
+P(f"**Keeping the test period from steering the choice.** Selection and evaluation are separate stages. `python run.py model` "
   f"uses development rows only and freezes the choice (model, features, threshold, costs, sample rule) in "
   f"`model_choice.json` with a SHA-1 hash (`{choice['sha1'][:10]}`, frozen {choice['frozen_at'][:10]}). "
   f"`python run.py test` refuses to run if the file was edited after freezing or if that choice has already been "
@@ -974,18 +1003,31 @@ P(f"**Keeping the test period single-use.** Selection and evaluation are separat
   f"`test_log.jsonl`. The log holds {len(tlog)} events, reported here in full: a first scoring on "
   f"{tlog[0]['scored_at'][:10]} with the earlier sample definition, which still contained the rows whose report "
   f"was not yet public; a logged re-selection on {reselect[0]['at'][:10] if reselect else '–'} whose reason is that "
-  f"sample correction, made on development data only; and the scoring of the new frozen choice reported "
-  f"below. The correction removes information that was not yet public at the decision date, as the leakage rule "
+  f"sample correction, made on development data only with the unchanged CV rule (it moved the winner from "
+  f"the regularised variant ({NAMES['hgb_all_small']}) to {NAMES[CH]}); and the scoring "
+  f"of the new frozen choice reported below. The test period has therefore been scored twice, and the report "
+  f"does not claim otherwise: {f(tlog[0]['pr_auc'], 3)} is a superseded preliminary result on a sample that broke "
+  f"the availability rule, and {f(cht['pr_auc'], 3)} is the final result. The final evaluation therefore does not "
+  f"fully satisfy the brief's strict single-use rule for the test period. The correction removes information that was not yet public at the decision date, as the leakage rule "
   f"requires; it was not a response to test performance, "
   f"and it lowered the test PR-AUC from {f(tlog[0]['pr_auc'], 3)} to {f(cht['pr_auc'], 3)}, because the removed rows "
   f"were the easiest positives. The chosen model reaches a test PR-AUC of "
-  f"{f(cht['pr_auc'], 3)} against {f(blt['pr_auc'], 3)} for the baseline. At the cost-based threshold it raises "
-  f"{n(cht['alerts'])} alerts and catches {n(cht['tp'])} of {n(cht['positives'])} positive bank-quarters, at an "
+  f"{f(cht['pr_auc'], 3)} against {f(blt['pr_auc'], 3)} for the baseline. The test rows are reports from "
+  f"2011Q1 to 2025Q2; because each row looks four quarters ahead, failures up to 2026Q2 enter its labels, and "
+  f"no 2026 report is used. At the cost-based threshold it raises "
+  f"{n(cht['alerts'])} alerts and catches {n(cht['tp'])} of {n(cht['positives'])} positive bank-quarters (row-level recall "
+  f"{pc(int(cht['tp']) / int(cht['positives']), 1)}), at an "
   f"expected cost of {f(float(cht['cost_k']) / 1000, 0)} million USD; with no model the cost would be "
   f"{f(float(cht['cost_no_model_k']) / 1000, 0)} million. By bank, {n(chd['detected_at_threshold'])} of "
-  f"{n(chd['failed_banks'])} failed banks ({pc(int(chd['detected_at_threshold']) / int(chd['failed_banks']), 0)}) "
-  f"are flagged at least once in the four quarters before failure, with a median lead time of "
-  f"{f(chd['median_lead_quarters'], 1)} quarters (baseline: {n(bld['detected_at_threshold'])}). ROC-AUC barely "
+  f"{n(chd['failed_banks'])} failed banks ({pc(int(chd['detected_at_threshold']) / int(chd['failed_banks']), 1)}, "
+  f"bank-level recall) are flagged at least once in the four quarters before failure, with a median lead time of "
+  f"{f(chd['median_lead_quarters'], 1)} quarters (baseline: {n(bld['detected_at_threshold'])}). The two recalls differ because a failed bank has up "
+  f"to four positive quarters and counts as detected if any one of them raises an alert. The denominator "
+  f"{n(chd['failed_banks'])} counts failed banks with at least one usable positive row; the "
+  f"{tst['failed_banks_only_in_excluded_rows']} test banks whose every positive row was removed by the "
+  f"availability rule (Section 3.3) cannot be scored and are not in it. Counted as misses, they would give "
+  f"{n(chd['detected_at_threshold'])} of {n(int(chd['failed_banks']) + int(tst['failed_banks_only_in_excluded_rows']))} "
+  f"({pc(int(chd['detected_at_threshold']) / (int(chd['failed_banks']) + int(tst['failed_banks_only_in_excluded_rows'])), 1)}). ROC-AUC barely "
   f"separates the two models ({f(cht['roc_auc'], 3)} vs {f(blt['roc_auc'], 3)}) because nearly all of the "
   f"{n(cht['rows'])} rows are easy negatives; PR-AUC, the alert counts and the cost show the difference that matters "
   f"to a supervisor: {n(int(blt['alerts']) - int(cht['alerts']))} fewer examinations for "
@@ -1000,7 +1042,7 @@ P(f"**Where it fails.** The model flags {d11} of the {n11} banks that failed in 
   f"(Board of Governors of the Federal Reserve System, 2023). Credit-risk features cannot see this, and the "
   f"training data contain almost no such cases. The remedy belongs to the pipeline: add uninsured-deposit and "
   f"securities-valuation fields to `FIN_FIELDS` and retrain, with no other stage changing.")
-FIG("pr", FIGS / "model_pr_test.png", "Precision–recall curves on the test period (single evaluation).", 11)
+FIG("pr", FIGS / "model_pr_test.png", "Precision–recall curves on the test period (final evaluation).", 11)
 H("6.6 The alarm rule in operation and its robustness", 2)
 _cm = []
 for lab_, m_ in (("Development, out-of-fold", CH), ("Development, out-of-fold", "baseline_logit_4")):
@@ -1008,7 +1050,7 @@ for lab_, m_ in (("Development, out-of-fold", CH), ("Development, out-of-fold", 
     _cm.append([lab_, NAMES[m_], f(d_["threshold"], 4), n(d_["tp"]), n(d_["fp"]), n(d_["fn"]),
                 f(d_["tp"] / (d_["tp"] + d_["fp"]), 3), f(d_["tp"] / (d_["tp"] + d_["fn"]), 3), f(d_["cost_k"] / 1000, 0)])
 for r_ in (cht, blt):
-    _cm.append(["Test (single use)", NAMES[r_["model"]], f(r_["threshold"], 4), n(r_["tp"]), n(r_["fp"]), n(r_["fn"]),
+    _cm.append(["Test (final)", NAMES[r_["model"]], f(r_["threshold"], 4), n(r_["tp"]), n(r_["fp"]), n(r_["fn"]),
                 f(r_["precision"], 3), f(r_["recall"], 3), f(float(r_["cost_k"]) / 1000, 0)])
 TAB(["Sample", "Model", "Threshold", "TP", "FP", "FN", "Precision", "Recall", "Cost M USD"], _cm,
     widths=[3.4, 4.2, 1.6, 1.2, 1.2, 1.2, 1.5, 1.3, 1.6], size=7.6,
@@ -1051,12 +1093,12 @@ P(f"**Q2 – data quality.** The raw data contain at least eleven distinct probl
   f"and the label window, the availability date and the censoring rule make the panel point-in-time; seven "
   f"assertions and a look-ahead test stop the pipeline if any of this breaks.")
 P(f"**Q3 – honest validation.** Yes, within limits. Purged rolling-origin CV, a four-quarter gap, preprocessing "
-  f"inside the training pipeline, a frozen choice and a single logged test evaluation give an estimate that can "
-  f"be trusted. The model beats the baseline and catches {pc(int(chd['detected_at_threshold']) / int(chd['failed_banks']), 0)} "
+  f"inside the training pipeline and a frozen, logged choice give a usable estimate, with one caveat: the test "
+  f"period is not an untouched holdout, because it was scored once before the availability correction. The model beats the baseline and catches {pc(int(chd['detected_at_threshold']) / int(chd['failed_banks']), 0)} "
   f"of failed banks in advance, with a test PR-AUC of {f(cht['pr_auc'], 3)} against {f(blt['pr_auc'], 3)} and a "
-  f"base rate of {f(tst['base_rate_pct'], 2)}%. The test is honest because nothing about it was chosen after "
-  f"seeing it: the choice file was frozen and hashed before scoring, and the log records every look at the test "
-  f"period, including the one before the availability correction (Section 6.5). The "
+  f"base rate of {f(tst['base_rate_pct'], 2)}%. The estimate remains informative because each choice "
+  f"was frozen and hashed before it was scored, the one re-selection was made for a leakage reason on "
+  f"development data only, and the log records both looks at the test period (Section 6.5). The "
   f"same honesty shows the blind spot: liquidity-driven failures like those of 2023, which the next version of "
   f"the field list should address.")
 H("7.1 Limitations", 2)
@@ -1092,23 +1134,27 @@ TAB(["Pipeline component", "US (this report)", "Vietnam (SBV supervision)"], [
     ["Quality rules", "identity checks, YTD, zeros as 'not reported'", "same checks plus VAS-to-IFRS mapping and changes in reporting templates"],
     ["Event / label", "FDIC failure within 4 quarters", "special control or compulsory transfer; very few events"],
     ["Features", "CAMELS ratios, dynamics, peer ranks", "same pillars; peer ranks matter more with few banks; add liquidity and related-party exposure"],
-    ["Validation", "rolling-origin CV, single test", "too few events for a test set: back-test on known cases, combine with expert scorecards"],
+    ["Validation", "rolling-origin CV, logged test", "too few events for a test set: back-test on known cases, combine with expert scorecards"],
 ], widths=[3.2, 5.4, 8.4], size=7.6, label="vietnam", caption="What carries over to Vietnam and what must change.")
 
 H("8. Reproducibility")
 P("The public repository holds `README.md`, a pinned `requirements.txt`, the code, an executed notebook and the "
   "evidence in `reports/`; data files are git-ignored. The README gives the end-to-end commands: "
-  "`pip install -r requirements.txt`, `python run.py ingest`, `python run.py all`. A rerun reproduces every table "
-  "and figure, and the report is rebuilt from them. The seed is fixed (2026), the download is resumable, and "
+  "`pip\u00a0install\u00a0\u2011r\u00a0requirements.txt`, `python\u00a0run.py\u00a0ingest`, `python\u00a0run.py\u00a0all`. A rerun reproduces every table "
+  "and figure, and the report is rebuilt from them; `all` skips `model` and `test` when the frozen choice has "
+  "already been scored, so a rerun never scores the test period again. The seed is fixed (2026), the download is resumable, and "
   "`pytest -q` runs six offline unit tests: the label window, YTD de-cumulation, gap handling, the look-ahead "
-  "property, the Winsorizer and the availability rule. Model selection (`python run.py model`) and the single "
+  "property, the Winsorizer and the availability rule. Model selection (`python run.py model`) and the "
   "test scoring (`python run.py test`) are separate commands, and both refuse to repeat a step that would let "
   "the test period influence the choice.")
 H("Use of AI tools and other sources")
 P("Claude (Anthropic, 2026), a large language model, was used as a coding and writing assistant: to draft parts "
   "of the code, tests and report text, and to review the pipeline for leakage. The author decided the design, "
   "ran every stage and checked each number against the generated tables. The ingestion code is adapted from the "
-  "course starter script `fdic_download_starter.py`. The same statement is in the README.")
+  "course starter script `fdic_download_starter.py`. ChatGPT (OpenAI, 2026) and Gemini (Google, 2026) were used "
+  "only to review drafts of the report against the exam brief and rubric (consistency of numbers, wording and "
+  "formatting); they wrote no code, and every change they suggested was checked against the generated tables "
+  "before it was made. The same statement is in the README.")
 H("References")
 REFS = [
     "Anthropic. (2026). Claude [Large language model]. https://claude.ai",
@@ -1118,14 +1164,16 @@ REFS = [
     "Elkan, C. (2001). The foundations of cost-sensitive learning. In Proceedings of the 17th International Joint Conference on Artificial Intelligence (pp. 973–978).",
     "Federal Deposit Insurance Corporation. (2025). 2024 annual report: Budget and spending. https://fdic.gov/financial-reports/2024-annual-report-section3",
     "Federal Deposit Insurance Corporation. (n.d.). BankFind Suite API and field definitions. Retrieved November 20, 2026, from https://api.fdic.gov/banks/docs/",
+    "Google. (2026). Gemini [Large language model]. https://gemini.google.com",
     "López de Prado, M. (2018). Advances in financial machine learning. Wiley.",
     "Martin, D. (1977). Early warning of bank failure: A logit regression approach. Journal of Banking & Finance, 1(3), 249–276. https://doi.org/10.1016/0378-4266(77)90022-X",
     "McKinney, W. (2010). Data structures for statistical computing in Python. In Proceedings of the 9th Python in Science Conference (pp. 56–61). https://doi.org/10.25080/Majora-92bf1922-00a",
-    "National Assembly of Vietnam. (2024). Law on Credit Institutions (Law No. 32/2024/QH15).",
+    "National Assembly of Vietnam. (2024). Law on Credit Institutions (Law No. 32/2024/QH15). https://www.div.gov.vn/uploads//files/2024/2/luat-cac-to-chuc-tin-dung-32-2024-qh15.pdf",
+    "OpenAI. (2026). ChatGPT [Large language model]. https://chatgpt.com",
     "Pedregosa, F., Varoquaux, G., Gramfort, A., et al. (2011). Scikit-learn: Machine learning in Python. Journal of Machine Learning Research, 12, 2825–2830.",
     "Polars developers. (2026). Polars (Version 2.1) [Computer software]. https://pola.rs",
     "Saito, T., & Rehmsmeier, M. (2015). The precision-recall plot is more informative than the ROC plot when evaluating binary classifiers on imbalanced datasets. PLOS ONE, 10(3), e0118432. https://doi.org/10.1371/journal.pone.0118432",
-    "State Bank of Vietnam. (2016). Circular No. 41/2016/TT-NHNN on capital adequacy ratios for banks and foreign bank branches.",
+    "State Bank of Vietnam. (2016). Circular No. 41/2016/TT-NHNN on capital adequacy ratios for banks and foreign bank branches. https://luatvietnam.vn/tai-chinh/thong-tu-41-2016-tt-nhnn-cua-ngan-hang-nha-nuoc-viet-nam-ve-viec-quy-dinh-ty-le-an-toan-von-doi-voi-ngan-hang-chi-nhanh-ngan-hang-nuoc-ngoai-111599-d1.html",
     "Tukey, J. W. (1977). Exploratory data analysis. Addison-Wesley.",
     "Zaharia, M., Xin, R. S., Wendell, P., et al. (2016). Apache Spark: A unified engine for big data processing. Communications of the ACM, 59(11), 56–65. https://doi.org/10.1145/2934664",
 ]
@@ -1134,7 +1182,7 @@ for ref in REFS:
     p.paragraph_format.left_indent, p.paragraph_format.first_line_indent = Cm(0.8), Cm(-0.8)
     p.paragraph_format.space_after = Pt(0)
     for rr in p.runs:
-        rr.font.size = Pt(8.5)
+        rr.font.size = Pt(8)
 
 # ================================================================== APPENDIX
 doc.add_page_break()
@@ -1149,8 +1197,19 @@ TAB(["Feature", "Group", "Definition", "Null %"],
     [[r_["feature"], r_["pillar"], r_["formula"], f(r_["null_pct"], 1)] for r_ in fdict],
     widths=[4.0, 1.2, 10.2, 1.6], size=7)
 H("C. Label checks (`panel_checks.csv`)", 2)
-TAB(["Check", "Passed", "Detail"], [[r_["check"], r_["passed"], r_["detail"][:70]] for r_ in pchecks],
+def _det(d):
+    d = d.strip()
+    if d.startswith("{"):
+        return "rows by quarters before failure: " + d.strip("{}").replace(": ", " → ").replace(", ", "; ")
+    return d[:70]
+
+
+TAB(["Check", "Passed", "Detail"], [[r_["check"], r_["passed"], _det(r_["detail"])] for r_ in pchecks],
     widths=[7.5, 1.5, 8.0], size=7.5)
+TAB(["Failed banks with ≥ 1 positive row, by where their positive rows fall", "Banks"],
+    [[k, n(v)] for k, v in BR.items()] + [["Total (= Table [[T:recon]])", n(sum(int(v) for v in BR.values()))]],
+    widths=[12.0, 2.5], size=8, label="bankrec",
+    caption="Every failed bank placed in exactly one group (model_bank_reconciliation.csv).")
 H("D. Spark physical plan (operator tree)", 2)
 tree = []
 for line in (T / "plan_spark_formatted.txt").read_text().splitlines()[1:]:
@@ -1169,7 +1228,7 @@ TAB(["Model", "Fold", "Validation", "Train rows", "Valid pos.", "Base rate %", "
       f(r_["pr_auc"], 3)] for r_ in folds if r_["model"] in (CH, "baseline_logit_4")],
     widths=[3.6, 1.0, 4.6, 2.0, 1.7, 1.8, 1.6], size=7.5)
 H("G. Cost sensitivity (threshold chosen on development, applied to test)", 2)
-TAB(["α", "C_FP k$", "C_FN/C_FP", "Threshold", "Dev recall", "Test recall", "Test alerts", "Test cost M$", "No model M$"],
+TAB(["alpha (α)", "C_FP k$", "C_FN/C_FP", "Threshold", "Dev recall", "Test recall", "Test alerts", "Test cost M$", "No model M$"],
     [[r_["alpha"], f(r_["cfp_k"], 0), f(r_["cfn_over_cfp"], 1), f(r_["threshold_dev"], 4), f(r_["dev_recall"], 3),
       f(r_["test_recall"], 3), n(r_["test_alerts"]), f(float(r_["test_cost_k"]) / 1000, 0),
       f(float(r_["test_cost_no_model_k"]) / 1000, 0)] for r_ in sens], size=7.5)
@@ -1187,6 +1246,11 @@ def _get(model, y, col):
 TAB(["Year"] + yrs, [["Failed banks"] + [_get(CH, y, "failed_banks") for y in yrs],
                      ["Chosen model"] + [_get(CH, y, "detected") for y in yrs],
                      ["Baseline"] + [_get("baseline_logit_4", y, "detected") for y in yrs]], size=7)
+P(f"Failed banks are those with at least one usable positive test row ({n(chd['failed_banks'])}); the "
+  f"{tst['failed_banks_only_in_excluded_rows']} banks without one are excluded (Section 6.5). "
+  "Failure years run past 2025 although the last test report is 2025Q2: a report of quarter q is labelled 1 if "
+  "the bank fails within the next four quarters, so failures up to 2026Q2 belong to test rows. No report dated "
+  "after 2025Q2 is used.")
 FIG("cvfolds", FIGS / "model_cv_folds.png", "PR-AUC by CV fold and model.", 13)
 H("I. Polars optimised plan of the benchmark workload (excerpt)", 2)
 P("Compare with the naive plan (`plan_bench_polars_naive.txt`), which scans `*/36` columns and evaluates every "
