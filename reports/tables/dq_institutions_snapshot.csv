@@ -1,6 +1,0 @@
-item,value
-institutions rows,27838
-ACTIVE = 1,4206
-ACTIVE = 1 and reporting in 2026-06-30,4199
-ENDEFYMD = 9999-12-31 (sentinel for 'still open'),4228
-ENDEFYMD is a real end date (bank ended),23610

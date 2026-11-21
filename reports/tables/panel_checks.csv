@@ -1,8 +1,0 @@
-check,passed,detail
-"(CERT, REPDTE) unique",true,""
-every positive fails strictly after its report date,true,""
-every positive fails within 4 quarters,true,"{1: 2528, 2: 2812, 3: 2793, 4: 2771}"
-no negative row has a failure inside its window,true,0
-no row on/after its failure date,true,""
-no positive without a failure (mergers are 0),true,""
-at most 4 positive quarters per failed bank,true,mean 3.84

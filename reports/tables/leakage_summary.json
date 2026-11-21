@@ -1,6 +1,0 @@
-{
- "fold1_train_rows": 286309,
- "medians_equal_train": true,
- "row_wise_transform": true,
- "median_rel_shift_clip_pct": 23.78522827679287
-}
