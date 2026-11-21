@@ -1,0 +1,17 @@
+exit_type,decade,len
+active,2020,4201
+failure,1980,1325
+failure,1990,937
+failure,2000,236
+failure,2010,327
+failure,2020,16
+merger_or_absorption,1980,3241
+merger_or_absorption,1990,6699
+merger_or_absorption,2000,3340
+merger_or_absorption,2010,2527
+merger_or_absorption,2020,957
+other_exit,1980,20
+other_exit,1990,49
+other_exit,2000,75
+other_exit,2010,38
+other_exit,2020,76

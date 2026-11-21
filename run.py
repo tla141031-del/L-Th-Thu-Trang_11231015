@@ -1,0 +1,78 @@
+"""Single entry point: ``python run.py <stage>``.
+
+Stages, in order: ingest, verify, store, bench_storage, quality, panel, features,
+bench_processing, spark, model, mllib, report.  ``python run.py all`` runs every stage
+after ``ingest`` (the download is resumable, so ``ingest`` can simply be rerun).
+"""
+from __future__ import annotations
+
+import argparse
+import sys
+import time
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+STAGES = ["ingest", "verify", "store", "bench_storage", "panel", "quality", "features",
+          "bench_processing", "spark", "experiments", "model", "mllib", "report"]
+
+
+def run(stage: str, args) -> None:
+    if stage == "ingest":
+        from fdic_ews import ingest
+        ingest.download_financials(args.start, args.end)
+        ingest.download_tables()
+    elif stage == "verify":
+        from fdic_ews import ingest
+        ingest.verify()
+    elif stage == "store":
+        from fdic_ews import storage
+        storage.build_curated()
+    elif stage == "bench_storage":
+        from fdic_ews import storage
+        storage.benchmark()
+    elif stage == "quality":
+        from fdic_ews import quality
+        quality.run()
+    elif stage == "panel":
+        from fdic_ews import panel
+        panel.build()
+    elif stage == "features":
+        from fdic_ews import features
+        features.build()
+    elif stage == "bench_processing":
+        from fdic_ews import bench_processing
+        bench_processing.run()
+    elif stage == "spark":
+        from fdic_ews import spark_check
+        spark_check.run()
+    elif stage == "experiments":
+        from fdic_ews import experiments
+        experiments.run()
+    elif stage == "model":
+        from fdic_ews import model
+        model.run()
+    elif stage == "mllib":
+        from fdic_ews import mllib_demo
+        mllib_demo.run()
+    elif stage == "report":
+        import runpy
+        runpy.run_path(str(Path(__file__).resolve().parent / "report" / "build_report.py"), run_name="__main__")
+
+
+def main() -> None:
+    from fdic_ews import config as C
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("stage", choices=STAGES + ["all"])
+    ap.add_argument("--start", default=C.START_QUARTER)
+    ap.add_argument("--end", default=C.END_QUARTER)
+    a = ap.parse_args()
+    for st in (STAGES[1:] if a.stage == "all" else [a.stage]):
+        t0 = time.perf_counter()
+        print(f"=== {st}", flush=True)
+        run(st, a)
+        print(f"=== {st} done in {time.perf_counter() - t0:.1f}s", flush=True)
+
+
+if __name__ == "__main__":
+    main()

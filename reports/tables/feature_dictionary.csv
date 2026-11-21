@@ -1,0 +1,41 @@
+feature,pillar,formula,null_pct
+equity_to_assets,C,EQ / ASSET,0.25
+tier1_leverage,C,"RBC1AAJ (%), 0 -> missing",4.68
+total_rbc_ratio,C,"RBCRWAJ (%), 0 -> missing (not collected before 1990)",27.81
+npl_ratio,A,NCLNLS / LNLSGR,1.28
+nonaccrual_to_assets,A,NAASSET / ASSET,4.57
+pd90_to_assets,A,P9ASSET / ASSET,4.57
+ore_to_assets,A,ORE / ASSET,0.25
+texas_ratio,A,(NCLNLS + ORE) / (EQ + LNATRES),1.07
+alll_to_loans,A,LNATRES / LNLSGR,1.38
+alll_coverage,A,LNATRES / NCLNLS,9.18
+nco_rate,A,4 x quarterly NTLNLS / LNLSGR,6.08
+provision_rate,A,4 x quarterly ELNATR / LNLSGR,3.96
+efficiency_ratio,M,NONIX_q / (INTINC_q - EINTEXP_q + NONII_q),1.09
+nonint_exp_to_assets,M,4 x NONIX_q / ASSET,0.59
+roa_q,E,"4 x NETINC_q / ASSET (de-cumulated, annualised)",0.59
+nim_q,E,4 x (INTINC_q - EINTEXP_q) / ASSET,0.66
+nonint_inc_to_assets,E,4 x NONII_q / ASSET,0.59
+loans_to_deposits,L,LNLSNET / DEP,0.72
+liquid_to_assets,L,(CHBAL + SC) / ASSET,0.0
+brokered_to_deposits,L,BRO / DEP,1.71
+deposits_to_assets,L,DEP / ASSET,0.0
+log_assets,S,ln(ASSET),0.0
+re_loans_share,S,LNRE / LNLSGR,1.13
+construction_share,S,LNRECONS / LNLSGR,1.31
+ci_loans_share,S,LNCI / LNLSGR,1.13
+consumer_share,S,LNCON / LNLSGR,1.37
+asset_growth_4q,dyn,ASSET_q / ASSET_{q-4} - 1 (null across gaps),5.64
+loan_growth_4q,dyn,LNLSGR_q / LNLSGR_{q-4} - 1,6.67
+d4_equity_to_assets,dyn,equity_to_assets_q - equity_to_assets_{q-4},5.88
+d4_npl_ratio,dyn,npl_ratio_q - npl_ratio_{q-4},6.86
+d1_npl_ratio,dyn,npl_ratio_q - npl_ratio_{q-1},2.71
+d4_texas_ratio,dyn,texas_ratio_q - texas_ratio_{q-4},6.6
+roa_mean4,dyn,mean roa_q over the last 4 reports (gap-aware),4.54
+roa_std4,dyn,std roa_q over the last 4 reports (gap-aware),4.54
+npl_rank_q,xs,percentile rank of npl_ratio among banks in the same quarter,1.28
+equity_rank_q,xs,percentile rank of equity_to_assets in the same quarter,0.25
+roa_rank_q,xs,percentile rank of roa_q in the same quarter,0.59
+state_npl_median,xs,median npl_ratio of the bank's state in the same quarter,0.0
+state_d4_npl_median,xs,median d4_npl_ratio of the state in the same quarter,4.27
+bank_age_years,M,"(REPDTE - ESTYMD) / 365.25 (ESTYMD is a fixed fact, known at q)",0.64
