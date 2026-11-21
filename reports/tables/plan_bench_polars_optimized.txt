@@ -1,0 +1,28 @@
+simple π 11/11 ["CERT", "REPDTE", "y", ... 8 other columns]
+   WITH_COLUMNS:
+   [when((col("_qi") - col("_qi").shift([dyn int: 4]).over([col("CERT")])) == 4).then(col("npl_ratio") - col("npl_ratio").shift([dyn int: 4]).over([col("CERT")])).otherwise(null.cast(Float64)).alias("d4_npl_ratio"), col("roa_q").rolling_mean().over([col("CERT")]).alias("roa_mean4"), (col("npl_ratio").rank().over([col("REPDTE")]) / col("npl_ratio").count().over([col("REPDTE")]).cast(Float64)).alias("npl_rank_q")] 
+    simple π 9/9 ["CERT", "REPDTE", "_qi", "y", ... 5 other columns]
+      simple π 18/18 ["CERT", "REPDTE", "ASSET", ... 15 other columns]
+         WITH_COLUMNS:
+         [when(col("__POLARS_CSER_0x100000017")).then(col("EQ") / col("ASSET")).otherwise(null.cast(Float64)).alias("equity_to_assets"), when(col("LNLSGR") > 0).then(col("NCLNLS") / col("LNLSGR")).otherwise(null.cast(Float64)).alias("npl_ratio"), when(col("__POLARS_CSER_0x100000017")).then((4.0 * col("NETINC_q")) / col("__POLARS_CSER_0x10000001e")).otherwise(null.cast(Float64)).alias("roa_q"), when(col("__POLARS_CSER_0x100000017")).then((4.0 * (col("INTINC_q") - col("EINTEXP_q"))) / col("__POLARS_CSER_0x10000001e")).otherwise(null.cast(Float64)).alias("nim_q"), when(col("DEP") > 0).then(col("LNLSNET") / col("DEP")).otherwise(null.cast(Float64)).alias("loans_to_deposits")] 
+           WITH_COLUMNS:
+           [(col("ASSET") > 0).alias("__POLARS_CSER_0x100000017"), col("ASSET").cast(Float64).alias("__POLARS_CSER_0x10000001e")] 
+            simple π 13/13 ["CERT", "REPDTE", "ASSET", ... 10 other columns]
+              simple π 18/18 ["CERT", "REPDTE", "ASSET", ... 15 other columns]
+                 WITH_COLUMNS:
+                 [(((col("fail_date") > col("REPDTE")) & (col("fail_date") <= col("_end")))).fill_null([false]).strict_cast(Int8).alias("y"), when(col("__POLARS_CSER_0x100000014")).then(col("NETINC")).otherwise(when((col("_qi") - col("_qi").shift([dyn int: 1]).over([col("CERT")])) == 1).then(col("NETINC") - col("NETINC").shift([dyn int: 1]).over([col("CERT")])).otherwise(null.cast(Int64))).strict_cast(Float64).alias("NETINC_q"), when(col("__POLARS_CSER_0x100000014")).then(col("INTINC")).otherwise(when((col("_qi") - col("_qi").shift([dyn int: 1]).over([col("CERT")])) == 1).then(col("INTINC") - col("INTINC").shift([dyn int: 1]).over([col("CERT")])).otherwise(null.cast(Int64))).strict_cast(Float64).alias("INTINC_q"), when(col("__POLARS_CSER_0x100000014")).then(col("EINTEXP")).otherwise(when((col("_qi") - col("_qi").shift([dyn int: 1]).over([col("CERT")])) == 1).then(col("EINTEXP") - col("EINTEXP").shift([dyn int: 1]).over([col("CERT")])).otherwise(null.cast(Int64))).strict_cast(Float64).alias("EINTEXP_q")] 
+                   WITH_COLUMNS:
+                   [(col("REPDTE").dt.quarter() == 1).alias("__POLARS_CSER_0x100000014")] 
+                     WITH_COLUMNS:
+                     [((col("REPDTE").dt.year() * 4) + col("REPDTE").dt.quarter().cast(Int32)).alias("_qi"), col("REPDTE").dt.offset_by(["12mo"]).dt.month_end().alias("_end")] 
+                      SORT BY [col("CERT"), col("REPDTE")]
+                        LEFT JOIN:
+                        LEFT PLAN ON: [col("CERT")]
+                          Parquet SCAN [/home/user/fdic-ews/data/curated/financials/year=1984/data.parquet, ... 42 other sources]
+                          PROJECT 11/36 COLUMNS
+                          ESTIMATED ROWS: 1707986
+                        RIGHT PLAN ON: [col("CERT")]
+                          Parquet SCAN [/home/user/fdic-ews/data/bench_processing/failures_x1.parquet]
+                          PROJECT */2 COLUMNS
+                          ESTIMATED ROWS: 3036
+                        END LEFT JOIN

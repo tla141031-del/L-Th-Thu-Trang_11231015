@@ -1,0 +1,3 @@
+{"scored_at": "2026-11-20T19:08:49Z", "choice_sha1": "bbe5899688c3de6a93c50223dd0afc2da4d6e585", "pr_auc": 0.5544763865741577}
+{"event": "reselected", "at": "2026-11-21T14:30:57Z", "old_choice_sha1": "bbe5899688c3de6a93c50223dd0afc2da4d6e585", "new_choice_sha1": "e0958f38dea046eda774f4442a124208f5e5ea33", "reason": "sample correction after review: rows whose bank failed on or before the report's availability date (REPDTE + 60 days) cannot be acted on and are removed from development and test; selection redone on development data only"}
+{"event": "test_scored", "scored_at": "2026-11-21T14:32:48Z", "choice_sha1": "e0958f38dea046eda774f4442a124208f5e5ea33", "pr_auc": 0.42722705143640727, "forced": false}

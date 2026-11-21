@@ -1,0 +1,9 @@
+item,value
+rows in failures table,4117.0
+RESTYPE = ASSISTANCE (bank stayed open),593.0
+rows without CERT,488.0
+"failures used (RESTYPE = FAILURE, with CERT)",3036.0
+of which after 1984Q1,2848.0
+after 1984Q1 but no Financials row,6.0
+Financials rows dated on/after the failure (removed),1211.0
+COST missing for used failures (%),3.2

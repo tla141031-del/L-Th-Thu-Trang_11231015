@@ -1,0 +1,15 @@
+{
+ "failures_dev": 2464,
+ "with_cost": 2442,
+ "cost_median_k": 9622.311614999999,
+ "cost_mean_k": 70205.50013401266,
+ "cost_p25_k": 3071.20566,
+ "cost_p75_k": 35468.894,
+ "loss_rate_median": 0.2128391395098156,
+ "alpha": 0.2,
+ "cfn_per_bank_k": 1924.4623229999997,
+ "positive_rows_per_failed_bank": 3.294185598767809,
+ "cfn_per_row_k": 584.1997256377557,
+ "cfp_k": 50.0,
+ "bayes_threshold": 0.07883951691987827
+}

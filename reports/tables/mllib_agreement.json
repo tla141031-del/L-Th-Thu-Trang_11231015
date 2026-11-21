@@ -1,0 +1,20 @@
+{
+ "spearman_logistic_probs": 0.9867319179923318,
+ "spark_session_start_s": 28.350807926000016,
+ "train_rows": 1084747,
+ "valid_rows": 136943,
+ "features": [
+  "equity_to_assets",
+  "npl_ratio",
+  "roa_q",
+  "loans_to_deposits",
+  "texas_ratio",
+  "tier1_leverage",
+  "d4_npl_ratio",
+  "construction_share",
+  "brokered_to_deposits",
+  "roa_std4",
+  "npl_rank_q",
+  "state_d4_npl_median"
+ ]
+}

@@ -1,0 +1,3 @@
+model,failed_banks,detected_at_threshold,detected_top2pct,median_lead_quarters
+hgb_all,181,170,172,3.2201533406352683
+baseline_logit_4,181,166,169,3.209200438116101

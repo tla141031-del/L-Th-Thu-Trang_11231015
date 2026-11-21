@@ -1,0 +1,8 @@
+{
+ "fdic_supervised_active_banks": 2615,
+ "supervision_budget_k": 1470000.0,
+ "supervision_cost_per_bank_year_k": 562.1414913957935,
+ "breakeven_cfp_k_at_recall_30": 826.5701903238329,
+ "breakeven_cfp_k_at_recall_50": 384.0796720882617,
+ "breakeven_cfp_k_at_recall_70": 183.34855447094108
+}

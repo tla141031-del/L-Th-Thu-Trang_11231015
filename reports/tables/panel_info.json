@@ -1,0 +1,27 @@
+{
+ "failures": {
+  "rows_raw": 4117,
+  "restype_counts": {
+   "FAILURE": 3524,
+   "ASSISTANCE": 593
+  },
+  "missing_cert": 488,
+  "duplicate_cert": 6,
+  "rows_used": 3036,
+  "used_since_1984": 2845
+ },
+ "rows_financials": 1682738,
+ "rows_removed_on_or_after_failure": 1211,
+ "rows_panel": 1681527,
+ "positive_rows": 10904,
+ "failed_banks_with_positive_row": 2839,
+ "failed_banks_in_panel": 2839,
+ "positives_failing_before_available": 1492,
+ "labels_asof": "2026-11-20",
+ "exit_banks": {
+  "merger_or_absorption": 16764,
+  "active": 4201,
+  "failure": 2841,
+  "other_exit": 258
+ }
+}
