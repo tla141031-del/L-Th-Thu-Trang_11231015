@@ -161,7 +161,7 @@ for tag, text in (("begin", None), (None, "PAGE"), ("end", None)):
 
 
 def H(t, lvl=1):
-    doc.add_heading(t, level=lvl)
+    doc.add_heading(t.replace("`", ""), level=lvl)
 
 
 def _inline(p, text, size=None):
@@ -228,7 +228,7 @@ def TAB(header, body, widths=None, size=8.5, caption=None, label=None):
         cells = t.add_row().cells
         for j, v in enumerate(row):
             cells[j].text = ""
-            rr = cells[j].paragraphs[0].add_run(str(v))
+            rr = cells[j].paragraphs[0].add_run(str(v).replace("`", ""))
             rr.font.size = Pt(size)
             if j > 0 and re.fullmatch(r"[-+\d.,%x ×/e]+", str(v) or "x"):
                 cells[j].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -367,7 +367,7 @@ TAB(["Item", "Value"], [
     ["Availability rule", f"rows used only if the report (REPDTE + 60 days) was public before any failure; "
                           f"{n(dev['rows_excluded_unavailable'])} development and {n(tst['rows_excluded_unavailable'])} "
                           f"test rows removed"],
-    ["Test period (used once)", f"2011Q1–2025Q2: {n(tst['rows'])} bank-quarters, {n(tst['failed_banks'])} "
+    ["Test period (frozen choice scored once)", f"2011Q1–2025Q2: {n(tst['rows'])} bank-quarters, {n(tst['failed_banks'])} "
                                 f"failed banks ({n(tst['positive_rows'])} positive rows)"],
 ], widths=[4.2, 12.8], size=9)
 sz, sc = sbr("parquet_zstd_by_year", "filter_1yr_state"), sbr("csv", "filter_1yr_state")
@@ -655,8 +655,9 @@ BUL([
     f"**Availability:** `available_date = REPDTE + {CFG.PUBLICATION_LAG_DAYS} days`, because Call Reports are "
     f"published weeks after quarter end (the filing deadline is 30 days, 35 for banks with foreign offices, so 60 "
     f"days is conservative). For {n(pinfo['positives_failing_before_available'])} of {n(pinfo['positive_rows'])} "
-    f"positive rows the bank failed on or before that date, so no supervisor could have acted on the report. These "
-    f"rows are removed from development ({n(dev['rows_excluded_unavailable'])} rows) and test "
+    f"positive rows the bank failed on or before that date, so no supervisor could have acted on the report "
+    f"({n(int(pinfo['positives_failing_before_available']) - int(dev['rows_excluded_unavailable']) - int(tst['rows_excluded_unavailable']))} "
+    f"of them lie in the 2010 gap or outside the modelling window). These rows are removed from development ({n(dev['rows_excluded_unavailable'])} rows) and test "
     f"({n(tst['rows_excluded_unavailable'])} rows) before any model is fitted, scored or evaluated (`model.load`); "
     f"{dev['failed_banks_only_in_excluded_rows']} development and {tst['failed_banks_only_in_excluded_rows']} test "
     f"banks failed so soon after their last usable report that they have no usable positive row at all.",
@@ -1099,8 +1100,10 @@ P("The public repository holds `README.md`, a pinned `requirements.txt`, the cod
   "evidence in `reports/`; data files are git-ignored. The README gives the end-to-end commands: "
   "`pip install -r requirements.txt`, `python run.py ingest`, `python run.py all`. A rerun reproduces every table "
   "and figure, and the report is rebuilt from them. The seed is fixed (2026), the download is resumable, and "
-  "`pytest -q` runs offline unit tests of the label window, YTD de-cumulation, gap handling, the look-ahead "
-  "property and the Winsorizer.")
+  "`pytest -q` runs six offline unit tests: the label window, YTD de-cumulation, gap handling, the look-ahead "
+  "property, the Winsorizer and the availability rule. Model selection (`python run.py model`) and the single "
+  "test scoring (`python run.py test`) are separate commands, and both refuse to repeat a step that would let "
+  "the test period influence the choice.")
 H("Use of AI tools and other sources")
 P("Claude (Anthropic, 2026), a large language model, was used as a coding and writing assistant: to draft parts "
   "of the code, tests and report text, and to review the pipeline for leakage. The author decided the design, "
@@ -1129,9 +1132,9 @@ REFS = [
 for ref in REFS:
     p = doc.add_paragraph(ref)
     p.paragraph_format.left_indent, p.paragraph_format.first_line_indent = Cm(0.8), Cm(-0.8)
-    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.space_after = Pt(0)
     for rr in p.runs:
-        rr.font.size = Pt(9)
+        rr.font.size = Pt(8.5)
 
 # ================================================================== APPENDIX
 doc.add_page_break()
