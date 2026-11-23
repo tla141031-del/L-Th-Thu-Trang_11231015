@@ -7,8 +7,8 @@
 This repository contains the full pipeline behind the report: acquisition of the public FDIC
 BankFind data (Financials 1984Q1–2026Q2, Failures, Institutions), storage, an automated
 data-quality report, a point-in-time bank-quarter panel, Polars feature engineering with a
-pandas / PySpark benchmark, and a leakage-controlled early-warning model with a cost-based alarm
-threshold and a logged evaluation on the test period (scored twice: a preliminary run before the availability fix and the final run; see below). Every number in the report is read from a
+pandas / PySpark benchmark, and a leakage-aware early-warning model with a cost-based alarm
+threshold and a logged evaluation on the test period (see below). Every number in the report is read from a
 file in `reports/` written by this code (`report/build_report.py` generates the report itself).
 
 ## Quick start (end to end)
@@ -19,7 +19,7 @@ pip install -U pip setuptools wheel                    # PySpark builds from sou
 pip install -r requirements.txt                        # Java 17/21 must be installed for PySpark
 
 python run.py ingest        # ~11 min; resumable: rerun after an interruption, finished quarters are skipped
-python run.py all           # verify -> store -> bench_storage -> quality -> panel -> features ->
+python run.py all           # verify -> store -> bench_storage -> panel -> quality -> features ->
                             # bench_processing -> spark -> experiments -> model -> test -> mllib -> report  (~1.8 h on 4 CPUs;
                             # model and test are skipped if the frozen choice was already scored, see below)
 pytest -q                   # offline unit tests (label window, YTD de-cumulation, gaps, look-ahead)
@@ -29,11 +29,10 @@ python scripts/make_notebook.py   # re-executes notebooks/run_pipeline.ipynb wit
 The report (`report/out/BFT65B_report.pdf` / `.docx`) is regenerated from `reports/` by `python run.py report`
 (needs LibreOffice for the PDF; the DOCX is written without it).
 
-**Test-period history and locks.** The test period has been scored twice, and both scorings are in
-`reports/tables/test_log.jsonl`: a preliminary scoring on 2026-11-20 (PR-AUC 0.554) on a sample that still contained
-rows whose report was not yet public, then a logged re-selection on development data after the availability fix, and the
-final scoring on 2026-11-21 (PR-AUC 0.427, the result in the report). The final test is therefore not an untouched
-holdout; the report says so. The locks below stop any further scoring, also under `all`. `python run.py model` (selection, development rows only)
+**Test-period history and locks.** The test period was re-evaluated once after the publication-lag fix (the earlier
+scoring used a sample that still contained reports not yet public at the decision date); the fix and the re-selection
+used development data only, nothing was tuned on test results, and every event is in `reports/tables/test_log.jsonl`.
+The earlier scoring (PR-AUC 0.554) is superseded, so the strict single-use rule is not fully met; the reported result is PR-AUC 0.427. The locks below stop any further scoring, also under `all`. `python run.py model` (selection, development rows only)
 freezes the choice in `reports/tables/model_choice.json` with a SHA-1 hash, and `python run.py test` scores it on the
 test period once and appends the result to `reports/tables/test_log.jsonl`. `python run.py all` checks the log first:
 if the frozen choice has already been scored (as in this repository), it **skips `model` and `test`** and keeps the
@@ -41,6 +40,8 @@ logged result, so rerunning the pipeline never re-scores the test period. Run on
 re-select after a scoring unless `--reason "..."` is given (the reason is logged), and `test` refuses to score the same
 or an edited choice again. To reproduce selection and the test scoring from scratch on a fresh copy, move
 `model_choice.json` and `test_log.jsonl` aside first, then run `python run.py model` and `python run.py test` once.
+
+**Rerun tolerance.** A rerun from a fresh download reproduces the data, panel and look-ahead tables exactly. The CV scores of the boosting models can move by about 0.005, because histogram boosting bins features on a random row subsample and the row order of the feature file can differ; the three best boosting variants are a near-tie (report Section 6.2). `reports/tables/model_cv_rerun_20261122.csv` holds the development-only CV of such a rerun; the frozen choice was not changed, and the frozen test result is kept rather than recomputed (`all` skips `model` and `test`).
 
 Single stages: `python run.py <stage>`. A trial download: `python run.py ingest --start 2023-03-31 --end 2023-12-31`.
 Data go to `data/` (git-ignored; set `FDIC_DATA_DIR` to use another folder). Seeds are fixed (`SEED = 2026`).
@@ -77,8 +78,7 @@ The notebook `notebooks/run_pipeline.ipynb` runs the same stages and keeps the o
   each fold trained only on rows whose label window had closed (purging).
 * Clipping, imputation and scaling are inside a scikit-learn `Pipeline` fitted on training rows only.
 * Model, features and threshold are frozen in `model_choice.json` before the test is scored (`run.py test`);
-  `test_log.jsonl` records every scoring and re-selection: a preliminary scoring before the availability fix
-  (0.554), the re-selection on development data, and the final scoring (0.427).
+  `test_log.jsonl` records every scoring and re-selection.
 
 ## Sources and acknowledgements
 
@@ -86,5 +86,5 @@ The notebook `notebooks/run_pipeline.ipynb` runs the same stages and keeps the o
 * BFT65B course. `fdic_download_starter.py` (course page, 2026): kept unchanged in `scripts/`; `src/fdic_ews/ingest.py` is adapted from it (paging, retries, per-quarter files, completeness check).
 * Software: Polars, pandas, PyArrow, PySpark / Spark MLlib, scikit-learn, SciPy, matplotlib, python-docx (versions in `requirements.txt`).
 * Methods and papers cited in the code and report: Martin (1977); Cole & White (2012); Tukey (1977); Saito & Rehmsmeier (2015); Elkan (2001); López de Prado (2018); Pedregosa et al. (2011); Zaharia et al. (2016); Board of Governors of the Federal Reserve System (2023). The full reference list is in the report.
-* **AI tool:** Claude (Anthropic, 2026) was used as a coding and writing assistant to draft code, tests and report text. The author reviewed, ran and checked the work; all numbers come from runs of this code.
+* **AI tool:** Claude (Anthropic, 2026) was used as a coding and writing assistant to draft code, tests and report text, and to review the pipeline for leakage. The author reviewed, ran and checked the work; all numbers come from runs of this code.
 * **Other AI tools:** ChatGPT (OpenAI, 2026) and Gemini (Google, 2026) were used only to review drafts of the report against the exam brief and rubric (consistency of numbers, wording, formatting). They wrote no code; every suggested change was checked against the generated tables before it was made.
